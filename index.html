@@ -46,6 +46,22 @@ function ensureAudioGraph(){
   if(!panner3D){
     panner3D=audioCtx.createPanner();
     panner3D.panningModel='HRTF';
+    panner3D.distanceModel='inverse';
+    panner3D.refDistance=1;
+    panner3D.maxDistance=50;
+    panner3D.rolloffFactor=1;
+    panner3D.coneInnerAngle=360;
+    panner3D.coneOuterAngle=0;
+    panner3D.coneOuterGain=0;
+
+    // Orientación del oyente (mirando hacia adelante, eje Y como arriba)
+    audioCtx.listener.forwardX.setValueAtTime(0, audioCtx.currentTime);
+    audioCtx.listener.forwardY.setValueAtTime(0, audioCtx.currentTime);
+    audioCtx.listener.forwardZ.setValueAtTime(-1, audioCtx.currentTime);
+    audioCtx.listener.upX.setValueAtTime(0, audioCtx.currentTime);
+    audioCtx.listener.upY.setValueAtTime(1, audioCtx.currentTime);
+    audioCtx.listener.upZ.setValueAtTime(0, audioCtx.currentTime);
+
     panner3D.connect(gainNode);
   }
   if(!stereoPanner){
@@ -103,14 +119,19 @@ function startPlayback(){
 }
 function stopPlayback(){ if(sourceNode){ sourceNode.stop(); sourceNode.disconnect(); sourceNode=null; } }
 
-// Posicionamiento 8D + paneo extremo
+// Posicionamiento 8D + paneo extremo + altura real
 function setPanner(nx,ny){
-  const cx=(nx-0.5)*2, cy=(ny-0.5)*2;
+  const cx=(nx-0.5)*2; // izquierda/derecha
+  const cy=(ny-0.5)*2; // arriba/abajo
   const r=3;
-  const x=cx*r, z=-cy*r, y=cy*r;
+
+  const x=cx*r;       // izquierda/derecha
+  const z=-cy*r;      // adelante/atrás
+  const y=cy*6;       // altura más marcada (factor 6)
+
   const t=audioCtx?.currentTime||0;
   panner3D.positionX.linearRampToValueAtTime(x,t+0.02);
-  panner3D.positionY.linearRampToValueAtTime(y,t+0.02);
+  panner3D.positionY.linearRampToValueAtTime(y,t+0.02); // altura real
   panner3D.positionZ.linearRampToValueAtTime(z,t+0.02);
 
   // Paneo duro en extremos
