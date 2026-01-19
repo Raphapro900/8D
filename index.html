@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Efecto 8D con movimiento del mouse</title>
+  <style>
+    :root {
+      --bg: #0f1220;
+      --panel: #171a2b;
+      --accent: #7c5cff;
+      --text: #e9e9f1;
+      --muted: #9aa0b4;
+      --border: #2a2f47;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 600px at 50% 0%, #14172a, var(--bg));
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+    }
+    .app {
+      width: min(900px, 92vw);
+      background: linear-gradient(180deg, #14172a 0%, var(--panel) 100%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      overflow: hidden;
+    }
+    header {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      background: conic-gradient(from 180deg at 50% 50%, #7c5cff, #4fd1c5, #ff6b6b, #7c5cff);
+      box-shadow: 0 6px 18px rgba(124,92,255,0.35);
+    }
+    header h1 {
+      font-size: 1.1rem;
+      margin: 0;
+      letter-spacing: 0.2px;
+    }
+    .content {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 0;
+    }
+    .left, .right {
+      padding: 22px;
+    }
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      transition: border-color 160ms ease, background 160ms ease;
+      background: rgba(255,255,255,0.02);
+    }
+    .dropzone.dragover {
+      border-color: var(--accent);
+      background: rgba(124,92,255,0.08);
+    }
+    .dropzone p {
+      margin: 8px 0;
+      color: var(--muted);
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    button, label.file-btn {
+      background: #1f2340;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+      text-align: center;
+    }
+    button:hover, label.file-btn:hover {
+      transform: translateY(-1px);
+      border-color: var(--accent);
+      box-shadow: 0 8px 20px rgba(124,92,255,0.25);
+    }
+    input[type="file"] { display: none; }
+    .file-name {
+      margin-top: 10px;
+      font-size: 0.95rem;
+      color: var(--muted);
+      min-height: 1.2em;
+    }
+    .stage {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      height: 320px;
+      overflow: hidden;
+      background:
+        radial-gradient(120px 60px at 20% 30%, rgba(124,92,255,0.18), transparent 60%),
+        radial-gradient(120px 60px at 80% 70%, rgba(79,209,197,0.18), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    }
+    .hint {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      pointer-events: none;
+      font-size: 0.95rem;
+    }
+    .dot {
+      position: absolute;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 6px rgba(124,92,255,0.18), 0 10px 24px rgba(0,0,0,0.35);
+      transform: translate(-50%, -50%);
+      left: 50%; top: 50%;
+      transition: left 60ms linear, top 60ms linear;
+    }
+    .meters {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .meter {
+      background: #1b1f36;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .meter b { color: var(--text); }
+    .row {
+      display: flex; align-items: center; gap: 10px; margin-top: 10px;
+    }
+    .row input[type="range"] { width: 100%; }
+    .toggle {
+      display: inline-flex; align-items: center; gap: 8px;
+      user-select: none; cursor: pointer;
+    }
+    .footer {
+      padding: 16px 22px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    @media (max-width: 860px) {
+      .content { grid-template-columns: 1fr; }
+      .stage { height: 280px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="logo" aria-hidden="true"></div>
+      <h1>Efecto 8D con Web Audio — arrastra o selecciona tu archivo</h1>
+    </header>
+
+    <div class="content">
+      <section class="left">
+        <div id="dropzone" class="dropzone" tabindex="0" aria-label="Zona para arrastrar y soltar audio">
+          <h2 style="margin:0 0 6px 0;">Importa tu audio</h2>
+          <p>Arrastra y suelta aquí, o</p>
+          <label class="file-btn">
+            Seleccionar archivo
+            <input id="fileInput" type="file" accept="audio/*">
+          </label>
+          <div class="file-name" id="fileName">Ningún archivo cargado</div>
+
+          <div class="controls">
+            <button id="playBtn" disabled>▶️ Reproducir</button>
+            <button id="pauseBtn" disabled>⏸️ Pausar</button>
+          </div>
+
+          <div class="row">
+            <label class="toggle">
+              <input id="orbitToggle" type="checkbox">
+              <span>Orbitar automático (8D clásico)</span>
+            </label>
+          </div>
+
+          <div class="row">
+            <label style="min-width: 120px;">Profundidad 8D</label>
+            <input id="depthRange" type="range" min="0" max="1" step="0.01" value="0.85">
+          </div>
+
+          <div class="row">
+            <label style="min-width: 120px;">Ganancia</label>
+            <input id="gainRange" type="range" min="0" max="1.5" step="0.01" value="1.0">
+          </div>
+        </div>
+      </section>
+
+      <section class="right">
+        <div class="stage" id="stage" aria-label="Área de control espacial con el mouse">
+          <div class="hint">Mueve el mouse (o toca) para posicionar el sonido</div>
+          <div class="dot" id="dot"></div>
+        </div>
+
+        <div class="meters">
+          <div class="meter"><b>Posición X:</b> <span id="mx">0.00</span></div>
+          <div class="meter"><b>Posición Y:</b> <span id="my">0.00</span></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="footer">
+      Consejo: el “8D” real se logra moviendo la fuente alrededor del oyente con un <i>PannerNode</i> y pequeñas modulaciones de filtro/volumen. Aquí lo controlas con el mouse y puedes activar la órbita automática.
+    </div>
+  </div>
+
+  <script>
+    // --- Estado y nodos Web Audio ---
+    let audioCtx;
+    let sourceNode;
+    let gainNode;
+    let panner;
+    let currentBuffer = null;
+    let isPlaying = false;
+
+    // Parámetros de control
+    const state = {
+      depth: 0.85,     // radio de la órbita / alcance del movimiento (0..1)
+      gain: 1.0,       // volumen
+      orbit: false,    // modo automático
+      angle: 0,        // ángulo actual para órbita
+      orbitSpeed: 0.9, // radianes/seg aprox
+      lastMouse: { x: 0.5, y: 0.5 }, // normalizado
+    };
+
+    // --- Elementos UI ---
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameEl = document.getElementById('fileName');
+    const playBtn = document.getElementById('playBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const orbitToggle = document.getElementById('orbitToggle');
+    const depthRange = document.getElementById('depthRange');
+    const gainRange = document.getElementById('gainRange');
+    const stage = document.getElementById('stage');
+    const dot = document.getElementById('dot');
+    const mxEl = document.getElementById('mx');
+    const myEl = document.getElementById('my');
+
+    // --- Inicializa contexto y nodos ---
+    function ensureAudioGraph() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (!gainNode) {
+        gainNode = audioCtx.createGain();
+        gainNode.gain.value = state.gain;
+        gainNode.connect(audioCtx.destination);
+      }
+      if (!panner) {
+        panner = audioCtx.createPanner();
+        panner.panningModel = 'HRTF';
+        panner.distanceModel = 'inverse';
+        panner.refDistance = 1;
+        panner.maxDistance = 50;
+        panner.rolloffFactor = 1;
+        panner.coneInnerAngle = 360;
+        panner.coneOuterAngle = 0;
+        panner.coneOuterGain = 0;
+        // Orientación del oyente (mirando hacia -Z)
+        audioCtx.listener.forwardX?.setValueAtTime(0, audioCtx.currentTime);
+        audioCtx.listener.forwardY?.setValueAtTime(0, audioCtx.currentTime);
+        audioCtx.listener.forwardZ?.setValueAtTime(-1, audioCtx.currentTime);
+        audioCtx.listener.upX?.setValueAtTime(0, audioCtx.currentTime);
+        audioCtx.listener.upY?.setValueAtTime(1, audioCtx.currentTime);
+        audioCtx.listener.upZ?.setValueAtTime(0, audioCtx.currentTime);
+
+        panner.connect(gainNode);
+      }
+    }
+
+    // --- Carga de archivo ---
+    async function loadFile(file) {
+      if (!file) return;
+      ensureAudioGraph();
+      const arrayBuffer = await file.arrayBuffer();
+      currentBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      fileNameEl.textContent = file.name;
+      playBtn.disabled = false;
+      pauseBtn.disabled = false;
+    }
+
+    // --- Reproducir / Pausar ---
+    function startPlayback() {
+      if (!currentBuffer || !audioCtx) return;
+      stopPlayback(); // reinicia si ya hay uno
+      sourceNode = audioCtx.createBufferSource();
+      sourceNode.buffer = currentBuffer;
+      sourceNode.loop = true;
+      sourceNode.connect(panner);
+      sourceNode.start();
+      isPlaying = true;
+      audioCtx.resume();
+    }
+
+    function stopPlayback() {
+      if (sourceNode) {
+        try { sourceNode.stop(); } catch {}
+        sourceNode.disconnect();
+        sourceNode = null;
+      }
+      isPlaying = false;
+    }
+
+    // --- Posicionamiento 8D ---
+    function setPannerFromNormalized(nx, ny) {
+      // nx, ny en [0,1] relativo al stage
+      // Convertimos a coordenadas centradas [-1,1]
+      const cx = (nx - 0.5) * 2;
+      const cy = (ny - 0.5) * 2;
+
+      // Radio según profundidad
+      const r = state.depth * 3.0; // metros aprox
+      // Mapeo: X lateral, Y adelante/atrás (invertimos para que arriba sea adelante)
+      const x = cx * r;
+      const z = -cy * r;
+      const y = 0; // mantenemos altura constante
+
+      // Suavizado ligero para evitar saltos bruscos
+      const t = audioCtx?.currentTime || 0;
+      panner.positionX?.linearRampToValueAtTime(x, t + 0.02);
+      panner.positionY?.linearRampToValueAtTime(y, t + 0.02);
+      panner.positionZ?.linearRampToValueAtTime(z, t + 0.02);
+
+      // Mueve el indicador visual
+      const rect = stage.getBoundingClientRect();
+      dot.style.left = `${nx * rect.width}px`;
+      dot.style.top  = `${ny * rect.height}px`;
+
+      // Meters
+      mxEl.textContent = cx.toFixed(2);
+      myEl.textContent = cy.toFixed(2);
+    }
+
+    // --- Órbita automática ---
+    function tickOrbit() {
+      if (!state.orbit) return;
+      const dt = 1 / 60;
+      state.angle += state.orbitSpeed * dt;
+      const nx = 0.5 + Math.cos(state.angle) * 0.45;
+      const ny = 0.5 + Math.sin(state.angle) * 0.25; // elipse para variar profundidad
+      setPannerFromNormalized(nx, ny);
+      requestAnimationFrame(tickOrbit);
+    }
+
+    // --- Eventos de UI ---
+    // Drag & drop
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      const file = e.dataTransfer.files?.[0];
+      loadFile(file);
+    });
+
+    // File input
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      loadFile(file);
+    });
+
+    // Play/Pause
+    playBtn.addEventListener('click', () => {
+      startPlayback();
+    });
+    pauseBtn.addEventListener('click', () => {
+      stopPlayback();
+    });
+
+    // Depth & Gain
+    depthRange.addEventListener('input', (e) => {
+      state.depth = parseFloat(e.target.value);
+    });
+    gainRange.addEventListener('input', (e) => {
+      state.gain = parseFloat(e.target.value);
+      if (gainNode) gainNode.gain.value = state.gain;
+    });
+
+    // Orbit toggle
+    orbitToggle.addEventListener('change', (e) => {
+      state.orbit = e.target.checked;
+      if (state.orbit) requestAnimationFrame(tickOrbit);
+    });
+
+    // Mouse y touch en el stage
+    function handlePointer(clientX, clientY) {
+      const rect = stage.getBoundingClientRect();
+      const nx = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      const ny = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+      state.lastMouse = { x: nx, y: ny };
+      setPannerFromNormalized(nx, ny);
+    }
+
+    stage.addEventListener('mousemove', (e) => {
+      if (state.orbit) return; // si está orbitando, ignoramos el mouse
+      handlePointer(e.clientX, e.clientY);
+    });
+
+    stage.addEventListener('touchmove', (e) => {
+      if (state.orbit) return;
+      const t = e.touches[0];
+      if (t) handlePointer(t.clientX, t.clientY);
+    }, { passive: true });
+
+    stage.addEventListener('click', (e) => {
+      // Un clic centra y reanuda el contexto si estaba suspendido
+      audioCtx?.resume();
+      if (!state.orbit) handlePointer(e.clientX, e.clientY);
+    });
+
+    // Estado inicial visual
+    setTimeout(() => setPannerFromNormalized(0.5, 0.5), 0);
+  </script>
+</body>
+</html>
