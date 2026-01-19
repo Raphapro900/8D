@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Audio 8D + Reverb + Links</title>
+  <title>Audio 8D + Reverb + Vista 3D</title>
   <style>
     body { font-family: sans-serif; background:#111; color:#eee; text-align:center; }
     .dropzone { border:2px dashed #555; padding:20px; margin:20px; }
@@ -10,7 +10,10 @@
     .stage { border:1px solid #555; height:300px; margin:20px; position:relative; }
     .dot { width:14px; height:14px; border-radius:50%; background:#7c5cff;
            position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); }
-    iframe { margin-top:20px; }
+    #threeContainer { position:fixed; inset:0; background:#000; display:none; }
+    #close3D { position:absolute; top:10px; right:10px; background:#c00; color:#fff;
+               border:none; padding:8px 12px; cursor:pointer; font-size:16px; }
+    canvas { display:block; }
   </style>
 </head>
 <body>
@@ -24,6 +27,7 @@
       <button id="playBtn" disabled>▶️ Play</button>
       <button id="pauseBtn" disabled>⏸️ Pause</button>
       <label><input type="checkbox" id="reverbToggle"> Reverb</label>
+      <button id="open3D">👁️ Vista 3D</button>
     </div>
     <p id="fileName">Ningún archivo cargado</p>
   </div>
@@ -33,16 +37,18 @@
     <div class="dot" id="dot"></div>
   </div>
 
-  <!-- Links externos -->
-  <h2>Reproducir links externos</h2>
-  <input id="urlInput" type="text" placeholder="Pega un link de audio (.mp3/.wav) o YouTube/Spotify/SoundCloud" size="60">
-  <button onclick="loadLink()">Cargar</button>
-  <div id="embed"></div>
+  <!-- Contenedor 3D -->
+  <div id="threeContainer">
+    <button id="close3D">X</button>
+    <div id="threeScene"></div>
+  </div>
 
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script>
 let audioCtx, sourceNode, gainNode, panner, convolver, dryGain, wetGain;
 let currentBuffer=null;
 
+// --- Audio ---
 function ensureAudioGraph(){
   if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
   if(!gainNode){ gainNode=audioCtx.createGain(); gainNode.connect(audioCtx.destination); }
@@ -73,16 +79,17 @@ function stopPlayback(){ if(sourceNode){ sourceNode.stop(); sourceNode.disconnec
 function setPanner(nx,ny){
   const cx=(nx-0.5)*2, cy=(ny-0.5)*2;
   const r=3;
-  const x=cx*r, z=-cy*r, y=cy*r; // altura también
+  const x=cx*r, z=-cy*r, y=cy*r;
   const t=audioCtx?.currentTime||0;
   panner.positionX.linearRampToValueAtTime(x,t+0.02);
   panner.positionY.linearRampToValueAtTime(y,t+0.02);
   panner.positionZ.linearRampToValueAtTime(z,t+0.02);
   const rect=stage.getBoundingClientRect();
   dot.style.left=`${nx*rect.width}px`; dot.style.top=`${ny*rect.height}px`;
+  update3D(x,y,z);
 }
 
-// Reverb
+// --- Reverb ---
 function createImpulse(duration=2,decay=2){
   const rate=audioCtx.sampleRate;
   const len=rate*duration;
@@ -109,7 +116,7 @@ document.getElementById("reverbToggle").addEventListener("change",e=>{
   wetGain.gain.value=e.target.checked?0.5:0.0;
 });
 
-// Eventos
+// --- Eventos ---
 const dropzone=document.getElementById("dropzone");
 dropzone.addEventListener("drop",e=>{e.preventDefault(); loadFile(e.dataTransfer.files[0]);});
 dropzone.addEventListener("dragover",e=>e.preventDefault());
@@ -121,32 +128,56 @@ stage.addEventListener("mousemove",e=>{
   setPanner((e.clientX-rect.left)/rect.width,(e.clientY-rect.top)/rect.height);
 });
 
-// Links externos
-async function loadAudioFromURL(url){
-  ensureAudioGraph();
-  const response=await fetch(url);
-  const arrayBuffer=await response.arrayBuffer();
-  currentBuffer=await audioCtx.decodeAudioData(arrayBuffer);
-  document.getElementById("fileName").textContent=url.split('/').pop();
-  playBtn.disabled=false; pauseBtn.disabled=false;
+// --- Vista 3D ---
+let scene, camera, renderer, sourceMesh, listenerMesh;
+function init3D(){
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,100);
+  camera.position.z=8;
+  renderer=new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  document.getElementById("threeScene").appendChild(renderer.domElement);
+
+  const light=new THREE.PointLight(0xffffff,1);
+  light.position.set(10,10,10);
+  scene.add(light);
+
+  const sphere=new THREE.SphereGeometry(0.5,32,32);
+  const mat=new THREE.MeshStandardMaterial({color:0x00ff00});
+  listenerMesh=new THREE.Mesh(sphere,mat);
+  scene.add(listenerMesh);
+
+  const cube=new THREE.BoxGeometry(0.3,0.3,0.3);
+  const mat2=new THREE.MeshStandardMaterial({color:0x7c5cff});
+  sourceMesh=new THREE.Mesh(cube,mat2);
+  scene.add(sourceMesh);
+
+  animate();
 }
-function loadLink(){
-  const url=document.getElementById("urlInput").value;
-  const embed=document.getElementById("embed"); embed.innerHTML="";
-  if(url.endsWith(".mp3")||url.endsWith(".wav")){
-    loadAudioFromURL(url);
-  } else if(url.includes("youtube.com")||url.includes("youtu.be")){
-    let id=url.split("v=")[1]||url.split("/").pop();
-    embed.innerHTML=`<iframe width="560" height="315" src="https://www.youtube.com/embed/${id}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
-  } else if(url.includes("spotify.com")){
-    let id=url.split("/track/")[1];
-    embed.innerHTML=`<iframe style="border-radius:12px" src="https://open.spotify.com/embed/track/${id}" width="560" height="152" frameborder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>`;
-  } else if(url.includes("soundcloud.com")){
-    embed.innerHTML=`<iframe width="560" height="166" scrolling="no" frameborder="no" src="https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23ff5500"></iframe>`;
-  } else {
-    embed.innerHTML="<p>Formato de link no soportado.</p>";
+function animate(){
+  requestAnimationFrame(animate);
+  renderer.render(scene,camera);
+}
+function update3D(x,y,z){
+  if(sourceMesh){ sourceMesh.position.set(x,y,z); }
+}
+document.getElementById("open3D").addEventListener("click",()=>{
+  document.getElementById("threeContainer").style.display="block";
+  if(!scene) init3D();
+});
+document.getElementById("close3D").addEventListener("click",()=>{
+  document.getElementById("threeContainer").style.display="none";
+});
+
+// Doble tap en móvil para cerrar
+let lastTap=0;
+document.getElementById("threeContainer").addEventListener("touchend",()=>{
+  const now=Date.now();
+  if(now-lastTap<300){ // dos taps en menos de 300ms
+    document.getElementById("threeContainer").style.display="none";
   }
-}
+  lastTap=now;
+});
 </script>
 </body>
 </html>
