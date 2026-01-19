@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Audio 8D</title>
+  <title>Audio 8D + Reverb + Links</title>
   <style>
     body { font-family: sans-serif; background:#111; color:#eee; text-align:center; }
     .dropzone { border:2px dashed #555; padding:20px; margin:20px; }
@@ -35,7 +35,7 @@
 
   <!-- Links externos -->
   <h2>Reproducir links externos</h2>
-  <input id="urlInput" type="text" placeholder="Pega un link de YouTube/Spotify/SoundCloud" size="50">
+  <input id="urlInput" type="text" placeholder="Pega un link de audio (.mp3/.wav) o YouTube/Spotify/SoundCloud" size="60">
   <button onclick="loadLink()">Cargar</button>
   <div id="embed"></div>
 
@@ -65,11 +65,7 @@ function startPlayback(){
   sourceNode=audioCtx.createBufferSource();
   sourceNode.buffer=currentBuffer;
   sourceNode.loop=true;
-  if(convolver){
-    sourceNode.connect(panner);
-  } else {
-    sourceNode.connect(panner);
-  }
+  sourceNode.connect(panner);
   sourceNode.start(); audioCtx.resume();
 }
 function stopPlayback(){ if(sourceNode){ sourceNode.stop(); sourceNode.disconnect(); sourceNode=null; } }
@@ -126,10 +122,20 @@ stage.addEventListener("mousemove",e=>{
 });
 
 // Links externos
+async function loadAudioFromURL(url){
+  ensureAudioGraph();
+  const response=await fetch(url);
+  const arrayBuffer=await response.arrayBuffer();
+  currentBuffer=await audioCtx.decodeAudioData(arrayBuffer);
+  document.getElementById("fileName").textContent=url.split('/').pop();
+  playBtn.disabled=false; pauseBtn.disabled=false;
+}
 function loadLink(){
   const url=document.getElementById("urlInput").value;
   const embed=document.getElementById("embed"); embed.innerHTML="";
-  if(url.includes("youtube.com")||url.includes("youtu.be")){
+  if(url.endsWith(".mp3")||url.endsWith(".wav")){
+    loadAudioFromURL(url);
+  } else if(url.includes("youtube.com")||url.includes("youtu.be")){
     let id=url.split("v=")[1]||url.split("/").pop();
     embed.innerHTML=`<iframe width="560" height="315" src="https://www.youtube.com/embed/${id}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
   } else if(url.includes("spotify.com")){
@@ -144,4 +150,3 @@ function loadLink(){
 </script>
 </body>
 </html>
-
